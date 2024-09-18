@@ -4,6 +4,9 @@
 #include <Arduino.h>
 #include <vector>
 #include <algorithm> // for std::sort
+#include <ArduinoJson.h>
+
+
 
 #include <HardwareSerial.h>
 
@@ -31,9 +34,45 @@ int lastTag3 = 0;
 int lastTag4 = 0;
 
 String macAddr = "";
+std::vector<String> liveDevices;  // Declare a dynamic array (vector)
 
 
 
+
+// Callback function when a message arrives
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+
+  //if(topic == "topic/liveDevices"){
+
+  // Copy the payload into a string for parsing
+  String message = "";
+  for (int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  
+  // Deserialize the JSON message (assuming the array is sent as JSON)
+  StaticJsonDocument<200> doc;
+  DeserializationError error = deserializeJson(doc, message);
+  
+  if (error) {
+    Serial.print("deserializeJson() failed: ");
+    Serial.println(error.f_str());
+    return;
+  }
+  
+  // Assume the array is sent as: [1, 2, 3, 4, 5]
+  JsonArray array = doc.as<JsonArray>();
+
+  liveDevices.clear();
+  // Parse the JSON array into the local array
+  for (int i = 0; i < array.size(); i++) {
+    liveDevices.push_back(array[i].as<String>());
+  }
+ // }
+}
 
 String extractData(String res);
 
@@ -48,6 +87,9 @@ void reconnect() {
         if (client.connect(String(WiFi.macAddress()).c_str())) {
             Serial.println("connected");
             digitalWrite(wifi, HIGH);
+            client.subscribe("topic/liveDevices", 1);  // Subscribe with QoS 1 (or 0)
+            client.publish("topic/liveDeviceStatus", "ask");
+
         } else {
             Serial.print("failed, rc=");
             Serial.print(client.state());
@@ -86,6 +128,7 @@ void setup_wifi() {
     macAddr = WiFi.macAddress();
     Serial.print("MAC address: ");
     Serial.println(macAddr);
+    
 
    // digitalWrite(wifi, HIGH);
 }
@@ -107,6 +150,8 @@ void setup() {
   Serial.begin(115200);
   setup_wifi();
   client.setServer(mqtt_server, 1884 );
+  client.setCallback(callback);
+
   reconnect();
   // Subscribe to a topic
   //client.subscribe("topic/test");
@@ -121,42 +166,60 @@ void loop() {
     }
   client.loop();
   String data = "";
+  
+  
+  for (int i = 0; i < liveDevices.size(); i++) {
 
-  MySerial.println("AT+ANCHOR_SEND=Tag1,4,Test");
-  delay(100);
- 
-  MySerial.println("AT+ANCHOR_SEND=Tag2,4,Test");
-  delay(100);
+    // Serial.print("Element ");
+    // Serial.print(i);
+    // Serial.print(": ");
+    // Serial.println(liveDevices[i]);
+
+    Serial.println("AT+ANCHOR_SEND="+liveDevices[i]+",4,Test");
+
+    MySerial.println("AT+ANCHOR_SEND="+liveDevices[i]+",4,Test");
+    delay(100);
+  
+   
+  }
+  
+  
+  //  MySerial.println("AT+ANCHOR_SEND=Tag1,4,Test");
+    // delay(200);
+
+  //  MySerial.println("AT+ANCHOR_SEND=Tag2,4,Test");
+  //   delay(100);
 
   
- 
+
+  Serial.println("OUTSIDE LOOP");
+
   while(MySerial.available()){
-    String response = MySerial.readString();
-    
-    data.concat(extractData(response));
-    //count+=1;
+      String response = MySerial.readString();
+      
+      data.concat(extractData(response));
+      //count+=1;
 
-    if (response.indexOf("OK") != -1) {
-      Serial.println("Communication with IPS Module Successful");
+      if (response.indexOf("OK") != -1) {
+        Serial.println("Communication with IPS Module Successful");
+      }
+      {
+     Serial.println(data);
+     Serial.println(count);
+      if(data!=""){
+        client.publish("topic/test", data.c_str());
+        count=0;
+        unsigned long currentTime = millis();  // Get current time in milliseconds
+        unsigned long diff = currentTime - lastTime;
+        Serial.print("Difference: ");
+        Serial.println(diff);
+        lastTime = currentTime;
+      }
+        break;
+      }
     }
-    {
-    Serial.println(data);
-    Serial.println(count);
-    if(data!=""){
-      client.publish("topic/test", data.c_str());
-      count=0;
-      unsigned long currentTime = millis();  // Get current time in milliseconds
-      unsigned long diff = currentTime - lastTime;
-      Serial.print("Difference: ");
-      Serial.println(diff);
-      lastTime = currentTime;
-    }
-      break;
-    }
-   }
 
-  delay(1000);
- 
+ delay(1000);
 
 }
 
@@ -212,12 +275,12 @@ int valuesCount = 0;
   }
 
 
-  for (auto it = myMap.begin(); it != myMap.end(); ++it) {
-    Serial.print("Key: ");
-    Serial.print(it->first);
-    Serial.print(", Value: ");
-    Serial.println(it->second);
-  }
+  // for (auto it = myMap.begin(); it != myMap.end(); ++it) {
+  //   Serial.print("Key: ");
+  //   Serial.print(it->first);
+  //   Serial.print(", Value: ");
+  //   Serial.println(it->second);
+  // }
 
 // Create a vector of pairs from the map
   std::vector<std::pair<String, int>> vec;
@@ -232,7 +295,7 @@ int valuesCount = 0;
       });
 
 
-  Serial.println("\nSorted map by values:");
+ // Serial.println("\nSorted map by values:");
   myRes.concat(macAddr);
   myRes.concat("#");
 
@@ -240,7 +303,7 @@ int valuesCount = 0;
     for (const auto& pair : vec) {
       Serial.print(pair.first.c_str());
       Serial.print(": ");
-      Serial.println(pair.second);
+     // Serial.println(pair.second);
       myRes.concat(pair.first.c_str());
       myRes.concat(":");
       myRes.concat(pair.second);
