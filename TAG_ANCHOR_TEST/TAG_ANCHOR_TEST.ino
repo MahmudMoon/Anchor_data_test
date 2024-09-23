@@ -13,11 +13,14 @@
 
 HardwareSerial MySerial(2);
 
-const char* ssid = "DESKTOP-Q111QC8 5213";
-const char* password = "t344T5$7";
+//const char* ssid = "DESKTOP-Q111QC8 5213";
+//const char* password = "t344T5$7";
+ const int LED_PIN = 2;
+//  const char* ssid = "BJIT_ADMIN";
+//  const char* password = "Bjit#@dmin";
 
-// const char* ssid = "GUEST_AP";
-// const char* password = "BJIT#Guest";
+ const char* ssid = "SoftBank_AP";
+ const char* password = "softbank@#2021";
 
 //const char* mqtt_server = "0.tcp.in.ngrok.io";
 const char* mqtt_server ="103.197.206.61";
@@ -28,7 +31,6 @@ const char* mqtt_clientid = "CLIENT1213";
 int count  = 0;
 int wifi = 5;
 int lastTime = 0;
-int lastTag1 = 0;
 int lastTag2 = 0;
 int lastTag3 = 0;
 int lastTag4 = 0;
@@ -83,10 +85,21 @@ void reconnect() {
     // Loop until we're reconnected
     while (!client.connected()) {
         Serial.print("Attempting MQTT connection...");
+
+        while (WiFi.status() != WL_CONNECTED) {
+          //digitalWrite(wifi, HIGH);
+          delay(250);
+          Serial.print(".");
+          // digitalWrite(wifi, LOW);
+          delay(250);
+          digitalWrite(LED_PIN, LOW);
+          setup_wifi();
+        }
+    
         // Attempt to connect
         if (client.connect(String(WiFi.macAddress()).c_str())) {
             Serial.println("connected");
-            digitalWrite(wifi, HIGH);
+            digitalWrite(LED_PIN, HIGH);
             client.subscribe("topic/liveDevices", 1);  // Subscribe with QoS 1 (or 0)
             client.publish("topic/liveDeviceStatus", "ask");
 
@@ -95,10 +108,9 @@ void reconnect() {
             Serial.print(client.state());
             Serial.println(" try again in 5 seconds");
             // Wait 5 seconds before retrying
-            digitalWrite(wifi, LOW);
+            digitalWrite(LED_PIN, LOW);
             delay(2500);
-            digitalWrite(wifi, HIGH);
-            delay(2500);
+            
         }
     }
 }
@@ -114,11 +126,12 @@ void setup_wifi() {
 
     
     while (WiFi.status() != WL_CONNECTED) {
-        digitalWrite(wifi, HIGH);
+        //digitalWrite(wifi, HIGH);
         delay(250);
         Serial.print(".");
-        digitalWrite(wifi, LOW);
+       // digitalWrite(wifi, LOW);
         delay(250);
+        digitalWrite(LED_PIN, LOW);
     }
     
     Serial.println("");
@@ -128,8 +141,8 @@ void setup_wifi() {
     macAddr = WiFi.macAddress();
     Serial.print("MAC address: ");
     Serial.println(macAddr);
-    
-
+    // Light up the LED on pin 2 when connected
+    digitalWrite(LED_PIN, HIGH); // Turn on the LED
    // digitalWrite(wifi, HIGH);
 }
 
@@ -141,8 +154,9 @@ void setup() {
   MySerial.begin(115200, SERIAL_8N1, 16, 17);
 
   delay(1000);
-  pinMode(wifi, OUTPUT);
-  digitalWrite(wifi, LOW);
+  //pinMode(wifi, OUTPUT);
+  pinMode(LED_PIN, OUTPUT); // Set pin 2 as output
+  //digitalWrite(wifi, LOW);
 
   Serial.println("Sending AT command to IPS module...");
   Serial.println("setup done");
