@@ -173,158 +173,272 @@ void setup() {
   
 }
 
-
 void loop() {
    if (!client.connected()) {
         reconnect();
     }
-  client.loop();
-  String data = "";
+    client.loop();
+    String data = "";
+  
+    // Iterate through live devices, even if there's only one
+    for (int i = 0; i < liveDevices.size(); i++) {
+        // Send the AT command to each device
+        Serial.println("AT+ANCHOR_SEND=" + liveDevices[i] + ",4,Test");
+        MySerial.println("AT+ANCHOR_SEND=" + liveDevices[i] + ",4,Test");
+        delay(100);
+    }
+  
+    // Check the serial input from MySerial
+    Serial.println("OUTSIDE LOOP");
+    while (MySerial.available()) {
+        String response = MySerial.readString();
+        
+        // Extract data from the response
+        data.concat(extractData(response));
+
+        // Check for a successful response
+        if (response.indexOf("OK") != -1) {
+            Serial.println("Communication with IPS Module Successful");
+        }
+
+        // If valid data is received, publish it
+        if (data != "") {
+            Serial.println("Publishing data to MQTT...");
+            client.publish("topic/test", data.c_str());
+            count = 0;
+            unsigned long currentTime = millis();  // Get current time in milliseconds
+            unsigned long diff = currentTime - lastTime;
+            Serial.print("Time since last publish: ");
+            Serial.println(diff);
+            lastTime = currentTime;
+        }
+
+        break;  // Exit the loop after processing the response
+    }
+
+    delay(1000);  // Delay before next iteration
+}
+
+String extractData(String input) {
+    String myRes = "";
+    const int maxValues = 10; // Maximum number of values to store
+    int values[maxValues];
+    String tags[maxValues];
+    int valuesCount = 0;
+
+    String delimiter = "cm";
+    int startIndex = 0;
+    int endIndex = 0;
+
+    // Extract data based on the 'cm' delimiter
+    while ((endIndex = input.indexOf(delimiter, startIndex)) != -1) {
+        String part = input.substring(startIndex, endIndex);
+        
+        // Extract the tag
+        int tagStartIndex = part.indexOf("Tag");
+        int tagEndIndex = part.indexOf(',', tagStartIndex);
+        String tag = part.substring(tagStartIndex, tagEndIndex);
+        
+        // Extract the number (distance)
+        int numberStartIndex = part.lastIndexOf(',') + 1;
+        String number = part.substring(numberStartIndex);
+        
+        // Store the tag and distance
+        if (valuesCount < maxValues) {
+            tags[valuesCount] = tag;
+            values[valuesCount] = number.toInt();
+            valuesCount++;
+        }
+
+        startIndex = endIndex + delimiter.length();
+    }
+
+    // Store tags and distances in a map for sorting
+    std::map<String, int> myMap;
+    for (int i = 0; i < valuesCount; i++) {
+        myMap[tags[i]] = values[i];
+    }
+
+    // Sort the map by distance
+    std::vector<std::pair<String, int>> vec;
+    for (const auto& pair : myMap) {
+        vec.push_back(pair);
+    }
+
+    std::sort(vec.begin(), vec.end(), [](const std::pair<String, int>& a, const std::pair<String, int>& b) {
+        return a.second < b.second;
+    });
+
+    // Prepare the result string
+    myRes.concat(macAddr);
+    myRes.concat("#");
+
+    for (const auto& pair : vec) {
+        Serial.print(pair.first);
+        Serial.print(": ");
+        Serial.println(pair.second);
+        myRes.concat(pair.first);
+        myRes.concat(":");
+        myRes.concat(pair.second);
+        myRes.concat("\n");
+    }
+
+    return myRes;
+}
+
+
+
+// void loop() {
+//    if (!client.connected()) {
+//         reconnect();
+//     }
+//   client.loop();
+//   String data = "";
   
   
-  for (int i = 0; i < liveDevices.size(); i++) {
+//   for (int i = 0; i < liveDevices.size(); i++) {
 
-    // Serial.print("Element ");
-    // Serial.print(i);
-    // Serial.print(": ");
-    // Serial.println(liveDevices[i]);
+//     // Serial.print("Element ");
+//     // Serial.print(i);
+//     // Serial.print(": ");
+//     // Serial.println(liveDevices[i]);
 
-    Serial.println("AT+ANCHOR_SEND="+liveDevices[i]+",4,Test");
+//     Serial.println("AT+ANCHOR_SEND="+liveDevices[i]+",4,Test");
 
-    MySerial.println("AT+ANCHOR_SEND="+liveDevices[i]+",4,Test");
-    delay(100);
+//     MySerial.println("AT+ANCHOR_SEND="+liveDevices[i]+",4,Test");
+//     delay(100);
   
    
-  }
+//   }
   
   
-  //  MySerial.println("AT+ANCHOR_SEND=Tag1,4,Test");
-    // delay(200);
+//   //  MySerial.println("AT+ANCHOR_SEND=Tag1,4,Test");
+//     // delay(200);
 
-  //  MySerial.println("AT+ANCHOR_SEND=Tag2,4,Test");
-  //   delay(100);
+//   //  MySerial.println("AT+ANCHOR_SEND=Tag2,4,Test");
+//   //   delay(100);
 
   
 
-  Serial.println("OUTSIDE LOOP");
+//   Serial.println("OUTSIDE LOOP");
 
-  while(MySerial.available()){
-      String response = MySerial.readString();
+//   while(MySerial.available()){
+//       String response = MySerial.readString();
       
-      data.concat(extractData(response));
-      //count+=1;
+//       data.concat(extractData(response));
+//       //count+=1;
 
-      if (response.indexOf("OK") != -1) {
-        Serial.println("Communication with IPS Module Successful");
-      }
-      {
-     Serial.println(data);
-     Serial.println(count);
-      if(data!=""){
-        client.publish("topic/test", data.c_str());
-        count=0;
-        unsigned long currentTime = millis();  // Get current time in milliseconds
-        unsigned long diff = currentTime - lastTime;
-        Serial.print("Difference: ");
-        Serial.println(diff);
-        lastTime = currentTime;
-      }
-        break;
-      }
-    }
+//       if (response.indexOf("OK") != -1) {
+//         Serial.println("Communication with IPS Module Successful");
+//       }
+//       {
+//      Serial.println(data);
+//      Serial.println(count);
+//       if(data!=""){
+//         client.publish("topic/test", data.c_str());
+//         count=0;
+//         unsigned long currentTime = millis();  // Get current time in milliseconds
+//         unsigned long diff = currentTime - lastTime;
+//         Serial.print("Difference: ");
+//         Serial.println(diff);
+//         lastTime = currentTime;
+//       }
+//         break;
+//       }
+//     }
 
- delay(1000);
+//  delay(1000);
 
-}
-
-
-String extractData(String input){
-
-String myRes = "";
-
-const int maxValues = 10; // Maximum number of values to store
-int values[maxValues];
-String tags[maxValues];
-int valuesCount = 0;
-
-  String delimiter = "cm";
-  int startIndex = 0;
-  int endIndex = 0;
+// }
 
 
-  while ((endIndex = input.indexOf(delimiter, startIndex)) != -1) {
-    // Find the part before "cm"
-    String part = input.substring(startIndex, endIndex);
+// String extractData(String input){
+
+// String myRes = "";
+
+// const int maxValues = 10; // Maximum number of values to store
+// int values[maxValues];
+// String tags[maxValues];
+// int valuesCount = 0;
+
+//   String delimiter = "cm";
+//   int startIndex = 0;
+//   int endIndex = 0;
+
+
+//   while ((endIndex = input.indexOf(delimiter, startIndex)) != -1) {
+//     // Find the part before "cm"
+//     String part = input.substring(startIndex, endIndex);
     
-    // Find the tag
-    int tagStartIndex = part.indexOf("Tag");
-    int tagEndIndex = part.indexOf(',', tagStartIndex);
-    String tag = part.substring(tagStartIndex, tagEndIndex);
+//     // Find the tag
+//     int tagStartIndex = part.indexOf("Tag");
+//     int tagEndIndex = part.indexOf(',', tagStartIndex);
+//     String tag = part.substring(tagStartIndex, tagEndIndex);
     
-    // Find the last comma in this part to locate the number
-    int numberStartIndex = part.lastIndexOf(',') + 1;
-    // Extract the number
-    String number = part.substring(numberStartIndex);
+//     // Find the last comma in this part to locate the number
+//     int numberStartIndex = part.lastIndexOf(',') + 1;
+//     // Extract the number
+//     String number = part.substring(numberStartIndex);
     
-    // Store the tag and number in the arrays
-    if (valuesCount < maxValues) {
-      tags[valuesCount] = tag;
-      values[valuesCount] = number.toInt();
-      valuesCount++;
-    }
+//     // Store the tag and number in the arrays
+//     if (valuesCount < maxValues) {
+//       tags[valuesCount] = tag;
+//       values[valuesCount] = number.toInt();
+//       valuesCount++;
+//     }
     
-    // Update startIndex to continue searching
-    startIndex = endIndex + delimiter.length();
-  }
+//     // Update startIndex to continue searching
+//     startIndex = endIndex + delimiter.length();
+//   }
 
-  // Print the extracted values and tags
- // Serial.println("Extracted values and tags:");
+//   // Print the extracted values and tags
+//  // Serial.println("Extracted values and tags:");
 
-  std::map<String, int> myMap;
+//   std::map<String, int> myMap;
 
-  Serial.print("Tags and Values");
-  for (int i = 0; i < valuesCount; i++) {  
-    myMap.insert(std::make_pair(tags[i], values[i]));
+//   Serial.print("Tags and Values");
+//   for (int i = 0; i < valuesCount; i++) {  
+//     myMap.insert(std::make_pair(tags[i], values[i]));
 
-  }
-
-
-  // for (auto it = myMap.begin(); it != myMap.end(); ++it) {
-  //   Serial.print("Key: ");
-  //   Serial.print(it->first);
-  //   Serial.print(", Value: ");
-  //   Serial.println(it->second);
-  // }
-
-// Create a vector of pairs from the map
-  std::vector<std::pair<String, int>> vec;
-  for (const auto& pair : myMap) {
-      vec.push_back(pair);
-  }
-
-     // Sort the vector based on the values (second part of pair)
-  std::sort(vec.begin(), vec.end(),
-      [](const std::pair<String, int>& a, const std::pair<String, int>& b) {
-          return a.second < b.second;
-      });
+//   }
 
 
- // Serial.println("\nSorted map by values:");
-  myRes.concat(macAddr);
-  myRes.concat("#");
+//   // for (auto it = myMap.begin(); it != myMap.end(); ++it) {
+//   //   Serial.print("Key: ");
+//   //   Serial.print(it->first);
+//   //   Serial.print(", Value: ");
+//   //   Serial.println(it->second);
+//   // }
 
-  if(vec.size() >= 2 ){
-    for (const auto& pair : vec) {
-      Serial.print(pair.first.c_str());
-      Serial.print(": ");
-     // Serial.println(pair.second);
-      myRes.concat(pair.first.c_str());
-      myRes.concat(":");
-      myRes.concat(pair.second);
-      myRes.concat("\n");
-    }
-  }
+// // Create a vector of pairs from the map
+//   std::vector<std::pair<String, int>> vec;
+//   for (const auto& pair : myMap) {
+//       vec.push_back(pair);
+//   }
 
-  return myRes;
-}
+//      // Sort the vector based on the values (second part of pair)
+//   std::sort(vec.begin(), vec.end(),
+//       [](const std::pair<String, int>& a, const std::pair<String, int>& b) {
+//           return a.second < b.second;
+//       });
+
+
+//  // Serial.println("\nSorted map by values:");
+//   myRes.concat(macAddr);
+//   myRes.concat("#");
+
+//   if(vec.size() >= 2 ){
+//     for (const auto& pair : vec) {
+//       Serial.print(pair.first.c_str());
+//       Serial.print(": ");
+//      // Serial.println(pair.second);
+//       myRes.concat(pair.first.c_str());
+//       myRes.concat(":");
+//       myRes.concat(pair.second);
+//       myRes.concat("\n");
+//     }
+//   }
+
+//   return myRes;
+// }
 
