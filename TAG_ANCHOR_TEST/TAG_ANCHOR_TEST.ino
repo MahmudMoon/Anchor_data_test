@@ -287,6 +287,10 @@ String extractData(String input) {
     }else if(macAddr == "D4:8A:FC:A8:9C:3C"){
       myRes.concat("Anchor4");
     }
+    else if(macAddr == "EC:64:C9:85:8B:90"){
+      myRes.concat("Anchor5");
+    }
+    
 
     myRes.concat("#");
 
